@@ -1,41 +1,39 @@
-import nodemailer from 'nodemailer';
+import nodemailer from "nodemailer";
 
 export default async function handler(req, res) {
-  if (req.method !== "POST") return res.status(405).json({ error: "POST only" });
+  if (req.method !== "POST") {
+    return res.status(405).json({ message: "Only POST allowed" });
+  }
 
-  const { ser, us, emails = [], workerEmail, name } = req.body;
-
-  let finalEmails = [...emails];
-  if (workerEmail) finalEmails.push(workerEmail);
-
-  if (finalEmails.length === 0) return res.status(400).json({ error: "No email" });
-
-  // Gmail SMTP transporter (free, bina verify ke kaam karta hai)
-  const transporter = nodemailer.createTransporter({
-    service: 'gmail',
-    auth: {
-      user: process.env.GMAIL_USER,    // ← Tumhara Gmail (Vercel env mein daal dena)
-      pass: process.env.GMAIL_PASS,    // ← Tumhara Gmail app password (neeche bataunga)
-    },
-  });
+  const { name, ser, us, workerEmail, emails } = req.body;
 
   try {
+    const transporter = nodemailer.createTransport({
+      host: process.env.SMTP_HOST,
+      port: Number(process.env.SMTP_PORT),
+      auth: {
+        user: process.env.SMTP_USER,
+        pass: process.env.SMTP_PASS
+      }
+    });
+
+    const receivers = Array.isArray(emails) ? emails.join(",") : emails;
+
     await transporter.sendMail({
-      from: process.env.GMAIL_USER,     // Tumhara Gmail
-      to: finalEmails,
-      subject: `New Form - ${name || "Someone"}`,
-      html: `
-        <h2>New Submission!</h2>
-        <p><strong>Name:</strong> ${name}</p>
-        <p><strong>Service:</strong> ${ser}</p>
-        <p><strong>Use:</strong> ${us}</p>
-        <hr>
-        <small>Sent from your website</small>
+      from: `"Form System" <${process.env.SMTP_USER}>`,
+      to: receivers,
+      subject: "New Form Submission",
+      text: `
+Name: ${name}
+SER: ${ser}
+US: ${us}
+Worker Email: ${workerEmail}
       `,
     });
 
-    res.status(200).json({ success: true });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
+    return res.status(200).json({ success: true });
+  } catch (err) {
+    console.log(err);
+    return res.status(500).json({ success: false });
   }
 }
